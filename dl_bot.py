@@ -54,6 +54,68 @@ def GetStocks(url='https://www.nasdaq.com/market-activity/stocks/screener',
 
     return df
 
+def getSymbols_r(syms, fr=None, src='yahoo'):
+    """
+    call the R quantmod getSymbols
+    """
+    import rpy2
+    import pandas as pd
+    from rpy2.robjects import r
+    import rpy2.robjects as ro
+    from rpy2.robjects.vectors import StrVector
+    from rpy2.robjects.packages import importr
+    from rpy2.robjects import Environment, globalenv, pandas2ri
+    from rpy2.robjects.conversion import localconverter
+
+    # utils = rpackages.importr('utils')
+    # utils.chooseCRANmirror(ind=1)
+    ## Install packages
+    # packnames = ('quantmod', 'rmgarch')
+    # utils.install_packages(StrVector(packnames))
+
+    # Load packages
+    # anything require stats.dll need to add current R x64 binaries(C:\Program Files\R\R-4.1.0\bin\x64) in PATH
+    #stats = importr('stats')
+    #base = importr('base')
+    #mgarch = importr('rmgarch')
+    #sta = {"skeleton.TA": "skeleton_dot_TA", "skeleton_TA": "skeleton_uscore_TA"}
+    #quantmod = importr('quantmod', robject_translations=sta)
+
+    quantmod = importr('quantmod')
+
+    #build the cmd string
+    n = len(syms)
+    cmd = "getSymbols(c("
+    for i in range(n):
+        s = syms[i]
+        if i < n-1:
+            cmd = cmd + '\'' + s + '\','
+        else:
+            cmd = cmd + '\'' + s + '\'),'
+    if not None == fr:
+        cmd = cmd + 'fr=\'' + fr + '\','
+    cmd = cmd + 'src=\'' + src + '\')'
+
+    df_l = []
+	
+    # this seems to work for now
+    with localconverter(ro.default_converter + pandas2ri.converter):
+        # this will return a series of names of xts objects saved in R's globalenv
+        names = r(cmd)
+        for name in names:
+            # convert to df
+            c = name + '<-as.data.frame(as.matrix(' + name + '))'
+            r(c)
+            # retrieve and convert to pandas df
+            df = ro.conversion.rpy2py(globalenv[name])
+            # the df.index is an unnamed date string series, convert to python date
+            df.index = pd.to_datetime(df.index)
+            df.index.name = 'Date' # give a name
+            df_l.append(df)
+
+    return df_l # can also return pd.concat(df_l, axis=1) as one big df
+
+
 # test
 if __name__ == '__main__':
     df = GetStocks()
